@@ -1,27 +1,20 @@
-# Precision Agriculture Crop Yield Prediction Model
+# Crop Yield Prediction & Deployment System
 
-## Mission & Problem Description
-To enhance agricultural planning and food security, this project builds an automated machine learning system predicting crop yields using multi-spectral satellite indices (NDVI, SAVI, GNDVI, NDWI) and climate observations (soil moisture, temperature, rainfall). The system provides accessible yield estimations via a cloud-hosted REST API and Flutter mobile client.
+## Mission Statement & Use Case
+Our mission is to support agricultural planners and farmers by accurately predicting crop yields ($hg/ha$) based on local environmental factors and pesticide inputs. Predicting yields enables proactive food security planning, resource allocation, and mitigation against crop failure.
 
-## Data Source & Description
-* **Source:** Satellite spectral index observations and weather station recordings across agricultural field plots.
-* **Volume & Variety:** Includes 13 features capturing spatial coordinates, 4 vegetation/water spectral indices, environmental indicators, and categorical crop types across multiple harvest cycles.
+## Dataset Description & Source
+* **Source:** FAO & World Bank Open Data (Crop Yield Dataset).
+* **Description:** Contains records across various countries and years detailing average rainfall (mm), pesticide application (tonnes), average annual temperature (°C), and crop yield ($hg/ha$).
 
-## Visualizations
-The analysis notebook (`summative/linear_regression/multivariate.ipynb`) generates:
-1. **Correlation Heatmap:** Highlights strong linear reliance between SAVI/NDVI indices and final yield outputs.
-2. **Variable Distributions:** Histogram and scatter distributions illustrating yield separation by crop species and rainfall dependency.
+## Public API Documentation
+* **Swagger UI Documentation:** `https://your-render-app.onrender.com/docs`
 
-## Public API & Documentation
-* **Swagger UI Documentation:** `https://your-render-app-name.onrender.com/docs`
-* **Prediction Endpoint:** `POST https://your-render-app-name.onrender.com/predict`
-* **Retraining Endpoint:** `POST https://your-render-app-name.onrender.com/retrain`
+## Demo Video
+* **YouTube Video Link:** `https://youtu.be/YOUR_VIDEO_LINK`
 
-## Demonstration Video
-* **YouTube Video Link:** `https://www.youtube.com/watch?v=YOUR_VIDEO_ID`
-
-## Mobile App Execution Instructions
-1. Ensure Flutter SDK is installed (`flutter doctor`).
-2. Navigate to the app directory:
-   ```bash
-   cd summative/FlutterApp
+## How to Run the Flutter Mobile App
+1. Ensure Flutter SDK is installed: `flutter doctor`
+2. Navigate to Flutter app folder: `cd summative/FlutterApp`
+3. Fetch dependencies: `flutter pub get`
+4. Run on attached device/emulator: `flutter run`

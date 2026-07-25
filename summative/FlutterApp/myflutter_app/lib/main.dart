@@ -3,112 +3,82 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 void main() {
-  runApp(const YieldPredictionApp());
+  runApp(const AfricanWastePredictorApp());
 }
 
-class YieldPredictionApp extends StatelessWidget {
-  const YieldPredictionApp({Key? key}) : super(key: key);
-
+class AfricanWastePredictorApp extends StatelessWidget {
+  const AfricanWastePredictorApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Crop Yield Predictor',
+      title: 'Africa Waste Predictor',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.green,
         useMaterial3: true,
       ),
-      home: const PredictionScreen(),
+      home: const WasteScreen(),
     );
   }
 }
 
-class PredictionScreen extends StatefulWidget {
-  const PredictionScreen({Key? key}) : super(key: key);
+class WasteScreen extends StatefulWidget {
+  const WasteScreen({super.key});
 
   @override
-  State<PredictionScreen> createState() => _PredictionScreenState();
+  State<WasteScreen> createState() => _WasteScreenState();
 }
 
-class _PredictionScreenState extends State<PredictionScreen> {
+class _WasteScreenState extends State<WasteScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Text controllers
-  final TextEditingController _latController = TextEditingController(text: "22.62");
-  final TextEditingController _lonController = TextEditingController(text: "88.49");
-  final TextEditingController _ndviController = TextEditingController(text: "0.45");
-  final TextEditingController _gndviController = TextEditingController(text: "0.41");
-  final TextEditingController _ndwiController = TextEditingController(text: "-0.41");
-  final TextEditingController _saviController = TextEditingController(text: "0.67");
-  final TextEditingController _soilMoistureController = TextEditingController(text: "25.29");
-  final TextEditingController _tempController = TextEditingController(text: "29.05");
-  final TextEditingController _rainfallController = TextEditingController(text: "11.03");
+  final TextEditingController _gdpController = TextEditingController();
+  final TextEditingController _popController = TextEditingController();
+  final TextEditingController _foodController = TextEditingController();
+  final TextEditingController _paperController = TextEditingController();
+  final TextEditingController _plasticController = TextEditingController();
 
-  String _selectedCrop = 'Rice';
-  final List<String> _crops = [
-    'Rice', 'Wheat', 'Maize', 'Bajra', 'Jowar', 'Soybean', 
-    'Sugarcane', 'Cotton', 'Mustard', 'Sunflower', 'Ragi'
-  ];
-
-  String _resultText = "";
+  String _result = "";
   bool _isLoading = false;
-  bool _isError = false;
 
-  // Replace with your public Render URL
-  final String _apiUrl = "https://linear-regression-model-z0pv.onrender.com/predict";
+  final String apiUrl = "https://your-render-app.onrender.com/predict";
 
-  Future<void> _makePrediction() async {
-    if (!_formKey.currentState!.validate()) {
-      setState(() {
-        _isError = true;
-        _resultText = "Please fix input errors before submitting.";
-      });
-      return;
-    }
+  Future<void> _getPrediction() async {
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _isLoading = true;
-      _resultText = "";
-      _isError = false;
+      _result = "";
     });
 
-    final Map<String, dynamic> requestData = {
-      "latitude": double.parse(_latController.text),
-      "longitude": double.parse(_lonController.text),
-      "NDVI": double.parse(_ndviController.text),
-      "GNDVI": double.parse(_gndviController.text),
-      "NDWI": double.parse(_ndwiController.text),
-      "SAVI": double.parse(_saviController.text),
-      "soil_moisture": double.parse(_soilMoistureController.text),
-      "temperature": double.parse(_tempController.text),
-      "rainfall": double.parse(_rainfallController.text),
-      "crop_type": _selectedCrop
-    };
-
     try {
-      final response = await http.post(
-        Uri.parse(_apiUrl),
+      final res = await http.post(
+        Uri.parse(apiUrl),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode(requestData),
+        body: jsonEncode({
+          "gdp": double.parse(_gdpController.text),
+          "population": double.parse(_popController.text),
+          "food_organic_pct": double.parse(_foodController.text),
+          "paper_cardboard_pct": double.parse(_paperController.text),
+          "plastic_pct": double.parse(_plasticController.text),
+        }),
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
         setState(() {
-          _isError = false;
-          _resultText = "Predicted Yield: ${data['predicted_yield']} ${data['units']}";
+          _result = "Predicted Annual Waste: ${data['predicted_msw_tons_year']} Tons/Year";
         });
       } else {
-        final errorData = jsonDecode(response.body);
+        final err = jsonDecode(res.body);
         setState(() {
-          _isError = true;
-          _resultText = "API Error: ${errorData['detail'] ?? 'Validation failed.'}";
+          _result = "Error: ${err['detail'] ?? 'Invalid input range'}";
         });
       }
     } catch (e) {
       setState(() {
-        _isError = true;
-        _resultText = "Network Error: Could not connect to API server.";
+        _result = "Connection failed: $e";
       });
     } finally {
       setState(() {
@@ -117,115 +87,62 @@ class _PredictionScreenState extends State<PredictionScreen> {
     }
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, String hint) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          border: const OutlineInputBorder(),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        ),
-        validator: (value) {
-          if (value == null || value.isEmpty) {
-            return "Field cannot be empty";
-          }
-          if (double.tryParse(value) == null) {
-            return "Enter a valid number";
-          }
-          return null;
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Precision Agriculture Yield Estimator'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text("African Waste Predictor")),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                "Input Satellite & Weather Parameters",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              TextFormField(
+                controller: _gdpController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Country GDP (USD)", border: OutlineInputBorder()),
+                validator: (val) => val == null || val.isEmpty ? "Enter GDP" : null,
               ),
               const SizedBox(height: 10),
-              
-              // Dropdown for Crop Type
-              DropdownButtonFormField<String>(
-                value: _selectedCrop,
-                decoration: const InputDecoration(
-                  labelText: "Crop Type",
-                  border: OutlineInputBorder(),
-                ),
-                items: _crops.map((String crop) {
-                  return DropdownMenuItem(value: crop, child: Text(crop));
-                }).toList(),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    _selectedCrop = newValue!;
-                  });
-                },
+              TextFormField(
+                controller: _popController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Population", border: OutlineInputBorder()),
+                validator: (val) => val == null || val.isEmpty ? "Enter Population" : null,
               ),
-              const SizedBox(height: 6),
-              
-              _buildTextField(_latController, "Latitude (-90 to 90)", "e.g. 22.62"),
-              _buildTextField(_lonController, "Longitude (-180 to 180)", "e.g. 88.49"),
-              _buildTextField(_ndviController, "NDVI (-1.0 to 1.0)", "e.g. 0.45"),
-              _buildTextField(_gndviController, "GNDVI (-1.0 to 1.0)", "e.g. 0.41"),
-              _buildTextField(_ndwiController, "NDWI (-1.0 to 1.0)", "e.g. -0.41"),
-              _buildTextField(_saviController, "SAVI (-1.0 to 1.5)", "e.g. 0.67"),
-              _buildTextField(_soilMoistureController, "Soil Moisture (0 to 100%)", "e.g. 25.29"),
-              _buildTextField(_tempController, "Temperature (°C)", "e.g. 29.05"),
-              _buildTextField(_rainfallController, "Rainfall (mm)", "e.g. 11.03"),
-
-              const SizedBox(height: 16),
-
-              ElevatedButton(
-                onPressed: _isLoading ? null : _makePrediction,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text("Predict Yield", style: TextStyle(fontSize: 16, color: Colors.white)),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _foodController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Organic Waste % (0 - 100)", border: OutlineInputBorder()),
+                validator: (val) => val == null || val.isEmpty ? "Enter Organic %" : null,
               ),
-
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _paperController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Paper/Cardboard % (0 - 100)", border: OutlineInputBorder()),
+                validator: (val) => val == null || val.isEmpty ? "Enter Paper %" : null,
+              ),
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _plasticController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: "Plastic % (0 - 100)", border: OutlineInputBorder()),
+                validator: (val) => val == null || val.isEmpty ? "Enter Plastic %" : null,
+              ),
               const SizedBox(height: 20),
-
-              // Display Area
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _isError ? Colors.red.shade50 : Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: _isError ? Colors.red : Colors.green,
-                    width: 1.5,
-                  ),
-                ),
-                child: Text(
-                  _resultText.isEmpty ? "Prediction output will appear here." : _resultText,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: _isError ? Colors.red.shade900 : Colors.green.shade900,
-                  ),
-                ),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _getPrediction,
+                style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+                child: _isLoading ? const CircularProgressIndicator() : const Text("Predict"),
               ),
+              const SizedBox(height: 20),
+              Text(
+                _result,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              )
             ],
           ),
         ),
