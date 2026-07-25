@@ -2,9 +2,12 @@ import os
 import joblib
 import numpy as np
 import pandas as pd
+
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
 
 app = FastAPI(
     title="African MSW Prediction API",
@@ -47,11 +50,11 @@ class AfricanWasteInput(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "gdp": 456775408619.0, # e.g. Nigeria [cite: 4]
-                "population": 154402181.0, [cite: 4]
+                "gdp": 456775408619.0, # e.g. Nigeria
+                "population": 154402181.0,
                 "food_organic_pct": 52.0,
-                "paper_cardboard_pct": 8.0, [cite: 4]
-                "plastic_pct": 4.8 [cite: 4]
+                "paper_cardboard_pct": 8.0,
+                "plastic_pct": 4.8
             }
         }
 
