@@ -29,9 +29,27 @@ app.add_middleware(
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "../linear_regression/best_model.pkl")
-SCALER_PATH = os.path.join(BASE_DIR, "../linear_regression/scaler.pkl")
-IMPUTER_PATH = os.path.join(BASE_DIR, "../linear_regression/imputer.pkl")
+
+
+def resolve_model_path(filename: str) -> str:
+    candidates = [
+        os.path.join(BASE_DIR, filename),
+        os.path.join(BASE_DIR, "..", "linear_regression", filename),
+        os.path.join(BASE_DIR, "..", "..", "linear_regression", filename),
+    ]
+
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+
+    raise FileNotFoundError(
+        f"Could not find {filename}. Checked: {', '.join(candidates)}"
+    )
+
+
+MODEL_PATH = resolve_model_path("best_model.pkl")
+SCALER_PATH = resolve_model_path("scaler.pkl")
+IMPUTER_PATH = resolve_model_path("imputer.pkl")
 
 model = joblib.load(MODEL_PATH)
 scaler = joblib.load(SCALER_PATH)
