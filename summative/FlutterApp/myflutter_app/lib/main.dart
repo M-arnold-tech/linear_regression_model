@@ -46,8 +46,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
   // Render API Endpoint
   final String _apiUrl = "https://linear-regression-model-iurj.onrender.com/predict";
 
-  Future<void> _makePrediction() async {
-    // 1. Validate empty text fields locally
+Future<void> _makePrediction() async {
     if (_countryController.text.isEmpty ||
         _popController.text.isEmpty ||
         _gdpController.text.isEmpty ||
@@ -81,38 +80,57 @@ class _PredictionScreenState extends State<PredictionScreen> {
         }),
       );
 
-      final responseData = jsonDecode(response.body);
+      // Handle double-encoded JSON strings if Render wraps response in quotes
+      dynamic decodedData = jsonDecode(response.body);
+      if (decodedData is String) {
+        try {
+          decodedData = jsonDecode(decodedData);
+        } catch (_) {}
+      }
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        double? predictedValue;
 
-        // Try extracting from all possible key variations
-        final dynamic rawPrediction = responseData['predicted_msw'] ??
-            responseData['predicted_total_msw_tons_year'] ??
-            responseData['prediction'];
+        // 1. If decoded payload is a Map / JSON Object
+        if (decodedData is Map) {
+          final rawVal = decodedData['predicted_msw'] ??
+              decodedData['predicted_total_msw_tons_year'] ??
+              decodedData['prediction'];
+          if (rawVal != null) {
+            predictedValue = double.tryParse(rawVal.toString());
+          }
+        } 
+        // 2. If decoded payload is directly a Number (e.g. 18457232.0)
+        else if (decodedData is num) {
+          predictedValue = decodedData.toDouble();
+        } 
+        // 3. If decoded payload is a numeric String (e.g. "18457232.0")
+        else if (decodedData is String) {
+          predictedValue = double.tryParse(decodedData);
+        }
 
-        final String country = responseData['country'] ??
-            responseData['country_name'] ??
-            _countryController.text.trim();
+        final String countryName = _countryController.text.trim();
 
         setState(() {
-          if (rawPrediction != null && rawPrediction.toString() != "null") {
+          if (predictedValue != null) {
             _isError = false;
-            _result = "Predicted MSW for $country:\n"
-                "${rawPrediction.toString()} Tons / Year";
+            // Format number cleanly (e.g., 18,457,232.00 Tons / Year)
+            final String formattedVal = predictedValue!.toStringAsFixed(2);
+            _result = "Predicted MSW for $countryName:\n\n$formattedVal Tons / Year";
           } else {
             _isError = true;
-            _result = "API returned 200 OK, but output was null.\nRaw Body: ${response.body}";
+            // Debug fallback to show actual structure if decoding fails
+            _result = "Could not parse prediction.\nAPI Payload: ${response.body}";
           }
         });
-      } 
-        else {
-        // Handle FastAPI Pydantic range/type validation errors
+      } else {
         String errorMsg = "Prediction failed.";
-        if (responseData['detail'] is List && responseData['detail'].isNotEmpty) {
-          errorMsg = responseData['detail'][0]['msg'] ?? "Invalid input range or format.";
-        } else if (responseData['detail'] is String) {
-          errorMsg = responseData['detail'];
+        if (decodedData is Map && decodedData['detail'] != null) {
+          if (decodedData['detail'] is List && (decodedData['detail'] as List).isNotEmpty) {
+            errorMsg = decodedData['detail'][0]['msg'] ?? "Invalid input value.";
+          } else if (decodedData['detail'] is String) {
+            errorMsg = decodedData['detail'];
+          }
         }
 
         setState(() {
@@ -131,7 +149,6 @@ class _PredictionScreenState extends State<PredictionScreen> {
       });
     }
   }
-
   @override
   void dispose() {
     _countryController.dispose();
