@@ -3,82 +3,96 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 void main() {
-  runApp(const AfricanWastePredictorApp());
+  runApp(const AfricanWastePredictionApp());
 }
 
-class AfricanWastePredictorApp extends StatelessWidget {
-  const AfricanWastePredictorApp({super.key});
+class AfricanWastePredictionApp extends StatelessWidget {
+  const AfricanWastePredictionApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Africa Waste Predictor',
+      title: 'African Waste Predictor',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.green,
-        useMaterial3: true,
+        primarySwatch: Colors.teal,
+        scaffoldBackgroundColor: const Color(0xFFF5F7FA),
       ),
-      home: const WasteScreen(),
+      home: const PredictionScreen(),
     );
   }
 }
 
-class WasteScreen extends StatefulWidget {
-  const WasteScreen({super.key});
+class PredictionScreen extends StatefulWidget {
+  const PredictionScreen({super.key});
 
   @override
-  State<WasteScreen> createState() => _WasteScreenState();
+  State<PredictionScreen> createState() => _PredictionScreenState();
 }
 
-class _WasteScreenState extends State<WasteScreen> {
-  final _formKey = GlobalKey<FormState>();
-
-  final TextEditingController _gdpController = TextEditingController();
-  final TextEditingController _popController = TextEditingController();
-  final TextEditingController _foodController = TextEditingController();
-  final TextEditingController _paperController = TextEditingController();
-  final TextEditingController _plasticController = TextEditingController();
+class _PredictionScreenState extends State<PredictionScreen> {
+  final _countryController = TextEditingController();
+  final _gdpController = TextEditingController();
 
   String _result = "";
+  Map<String, dynamic>? _details;
   bool _isLoading = false;
 
-  final String apiUrl = "https://your-render-app.onrender.com/predict";
+  // ⚠️ Replace with your actual deployed Render API endpoint URL
+  final String _apiUrl = "https://your-render-api.onrender.com/predict-by-country";
 
-  Future<void> _getPrediction() async {
-    if (!_formKey.currentState!.validate()) return;
-
+  Future<void> _makePrediction() async {
     setState(() {
       _isLoading = true;
       _result = "";
+      _details = null;
     });
 
+    final String country = _countryController.text.trim();
+    final String gdpInput = _gdpController.text.trim();
+
+    if (country.isEmpty) {
+      setState(() {
+        _result = "Error: Please enter an African country name.";
+        _isLoading = false;
+      });
+      return;
+    }
+
     try {
-      final res = await http.post(
-        Uri.parse(apiUrl),
+      final Map<String, dynamic> requestBody = {
+        "country_name": country,
+      };
+
+      // Add optional GDP override if provided by user
+      if (gdpInput.isNotEmpty) {
+        final double? parsedGdp = double.tryParse(gdpInput);
+        if (parsedGdp != null && parsedGdp >= 0) {
+          requestBody["override_gdp"] = parsedGdp;
+        }
+      }
+
+      final response = await http.post(
+        Uri.parse(_apiUrl),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "gdp": double.parse(_gdpController.text),
-          "population": double.parse(_popController.text),
-          "food_organic_pct": double.parse(_foodController.text),
-          "paper_cardboard_pct": double.parse(_paperController.text),
-          "plastic_pct": double.parse(_plasticController.text),
-        }),
+        body: jsonEncode(requestBody),
       );
 
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
         setState(() {
-          _result = "Predicted Annual Waste: ${data['predicted_msw_tons_year']} Tons/Year";
+          _result = "Predicted Solid Waste:\n${data['predicted_msw_tons_year']} Tons/Year";
+          _details = data['inputs_used'];
         });
       } else {
-        final err = jsonDecode(res.body);
+        final err = jsonDecode(response.body);
         setState(() {
-          _result = "Error: ${err['detail'] ?? 'Invalid input range'}";
+          _result = "Error: ${err['detail'] ?? 'Failed to get prediction.'}";
         });
       }
     } catch (e) {
       setState(() {
-        _result = "Connection failed: $e";
+        _result = "Network Error: Could not connect to API server.";
       });
     } finally {
       setState(() {
@@ -90,59 +104,116 @@ class _WasteScreenState extends State<WasteScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("African Waste Predictor")),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
+      appBar: AppBar(
+        title: const Text("African Solid Waste Predictor"),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: SingleChildScrollView(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextFormField(
+              const Text(
+                "Predict Municipal Solid Waste",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Enter an African country. Demographic & composition factors are auto-populated by the API.",
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              
+              // Country Input Field
+              TextField(
+                controller: _countryController,
+                decoration: const InputDecoration(
+                  labelText: "African Country Name *",
+                  hintText: "e.g. Nigeria, Kenya, Egypt",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.location_on),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Optional GDP Input Field
+              TextField(
                 controller: _gdpController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Country GDP (USD)", border: OutlineInputBorder()),
-                validator: (val) => val == null || val.isEmpty ? "Enter GDP" : null,
+                decoration: const InputDecoration(
+                  labelText: "GDP in USD (Optional Override)",
+                  hintText: "Leave blank to use default dataset GDP",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.attach_money),
+                ),
               ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _popController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Population", border: OutlineInputBorder()),
-                validator: (val) => val == null || val.isEmpty ? "Enter Population" : null,
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _foodController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Organic Waste % (0 - 100)", border: OutlineInputBorder()),
-                validator: (val) => val == null || val.isEmpty ? "Enter Organic %" : null,
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _paperController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Paper/Cardboard % (0 - 100)", border: OutlineInputBorder()),
-                validator: (val) => val == null || val.isEmpty ? "Enter Paper %" : null,
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: _plasticController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Plastic % (0 - 100)", border: OutlineInputBorder()),
-                validator: (val) => val == null || val.isEmpty ? "Enter Plastic %" : null,
-              ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
+
+              // Predict Button
               ElevatedButton(
-                onPressed: _isLoading ? null : _getPrediction,
-                style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-                child: _isLoading ? const CircularProgressIndicator() : const Text("Predict"),
+                onPressed: _isLoading ? null : _makePrediction,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Text("Predict", style: TextStyle(fontSize: 18)),
               ),
-              const SizedBox(height: 20),
-              Text(
-                _result,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              )
+              const SizedBox(height: 24),
+
+              // Output Display Area
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade300),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
+                    )
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      _result.isEmpty ? "Prediction output will appear here." : _result,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _result.startsWith("Error") ? Colors.red : Colors.teal.shade800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    if (_details != null) ...[
+                      const Divider(height: 24),
+                      const Text(
+                        "Auto-Fetched Metrics Used:",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      const SizedBox(height: 8),
+                      Text("• Country: ${_details!['country']}"),
+                      Text("• Population: ${_details!['fetched_population']}"),
+                      Text("• Organic Waste: ${_details!['food_organic_pct']}%"),
+                      Text("• Paper/Cardboard: ${_details!['paper_cardboard_pct']}%"),
+                      Text("• Plastic: ${_details!['plastic_pct']}%"),
+                    ]
+                  ],
+                ),
+              ),
             ],
           ),
         ),
