@@ -39,7 +39,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
   bool _isLoading = false;
 
   // ⚠️ Replace with your actual deployed Render API endpoint URL
-  final String _apiUrl = "https://your-render-api.onrender.com/predict-by-country";
+  final String _apiUrl = "https://linear-regression-model-iurj.onrender.com/predict-by-country";
 
   Future<void> _makePrediction() async {
     setState(() {
