@@ -37,7 +37,7 @@ class _PredictionScreenState extends State<PredictionScreen> {
   bool _isLoading = false;
 
   // Replace with your actual Render API Endpoint URL
-  final String _apiUrl = "https://your-render-app.onrender.com/predict";
+  final String _apiUrl = "https://linear-regression-model-iurj.onrender.com/predict";
 
   Future<void> _makePrediction() async {
     setState(() {
