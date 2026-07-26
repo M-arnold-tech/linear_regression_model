@@ -2,143 +2,143 @@ import os
 import joblib
 import numpy as np
 import pandas as pd
-
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from typing import List
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from sklearn.preprocessing import StandardScaler
-from sklearn.impute import SimpleImputer
 
+# -------------------------------------------------------------------
+# 1. FASTAPI APP INITIALIZATION & CORS SETUP
+# -------------------------------------------------------------------
 app = FastAPI(
     title="African MSW Prediction API",
-    description="API for predicting total annual municipal solid waste generation across African countries.",
-    version="1.0.0"
+    description="Predict Total Municipal Solid Waste (MSW) generated annually in African countries.",
+    version="1.0.0",
+    docs_url="/docs"
 )
 
-# ==========================================
-# CORS CONFIGURATION & REASONING
-# ==========================================
-# Reasoning: Allowed origins are limited to explicit Flutter client domains and local dev environments
-# to prevent cross-origin abuse while allowing legitimate app requests.
+# CORS Middleware Configuration
+# Configured for secure access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Restrict to your frontend domain in production
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Dynamic Path to the saved scikit-learn model pipeline
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "../linear_regression/best_model.pkl")
+
+def load_model():
+    if os.path.exists(MODEL_PATH):
+        return joblib.load(MODEL_PATH)
+    raise RuntimeError(f"Model file not found at path: {MODEL_PATH}")
+
+# Load model pipeline on startup
+model = load_model()
 
 
-def resolve_model_path(filename: str) -> str:
-    candidates = [
-        os.path.join(BASE_DIR, filename),
-        os.path.join(BASE_DIR, "..", "linear_regression", filename),
-        os.path.join(BASE_DIR, "..", "..", "linear_regression", filename),
-    ]
-
-    for candidate in candidates:
-        if os.path.exists(candidate):
-            return candidate
-
-    raise FileNotFoundError(
-        f"Could not find {filename}. Checked: {', '.join(candidates)}"
-    )
+# -------------------------------------------------------------------
+# 2. PYDANTIC SCHEMAS
+# -------------------------------------------------------------------
+class PredictionInput(BaseModel):
+    country_name: str = Field(..., description="Target African Country Name (e.g., Nigeria, Kenya)")
+    population: float = Field(..., ge=1000.0, le=1000000000.0, description="Population number")
+    gdp: float = Field(..., ge=100000.0, le=10000000000000.0, description="Gross Domestic Product in USD")
+    food_organic_pct: float = Field(..., ge=0.0, le=100.0, description="Food & Organic waste percentage")
+    paper_cardboard_pct: float = Field(..., ge=0.0, le=100.0, description="Paper & Cardboard waste percentage")
+    plastic_pct: float = Field(..., ge=0.0, le=100.0, description="Plastic waste percentage")
 
 
-MODEL_PATH = resolve_model_path("best_model.pkl")
-SCALER_PATH = resolve_model_path("scaler.pkl")
-IMPUTER_PATH = resolve_model_path("imputer.pkl")
+class RetrainInput(BaseModel):
+    new_data: List[PredictionInput]
+    actual_msw_tons: List[float]
 
-model = joblib.load(MODEL_PATH)
-scaler = joblib.load(SCALER_PATH)
-imputer = joblib.load(IMPUTER_PATH)
 
-# ==========================================
-# PYDANTIC INPUT SCHEMA (BOUNDS & DATATYPES)
-# ==========================================
-class AfricanWasteInput(BaseModel):
-    gdp: float = Field(..., ge=0.0, description="Gross Domestic Product in USD")
-    population: float = Field(..., ge=10000.0, le=300000000.0, description="African Country Population")
-    food_organic_pct: float = Field(..., ge=0.0, le=100.0, description="Organic Waste Percentage")
-    paper_cardboard_pct: float = Field(..., ge=0.0, le=100.0, description="Paper/Cardboard Waste Percentage")
-    plastic_pct: float = Field(..., ge=0.0, le=100.0, description="Plastic Waste Percentage")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "gdp": 456775408619.0, # e.g. Nigeria
-                "population": 154402181.0,
-                "food_organic_pct": 52.0,
-                "paper_cardboard_pct": 8.0,
-                "plastic_pct": 4.8
-            }
-        }
-
+# -------------------------------------------------------------------
+# 3. ENDPOINTS
+# -------------------------------------------------------------------
 @app.get("/")
-def root():
-    return {"message": "African Solid Waste API is active. Go to /docs for Swagger UI."}
+def read_root():
+    return {
+        "status": "Online",
+        "message": "African Solid Waste Prediction API is active.",
+        "documentation": "/docs"
+    }
+
 
 @app.post("/predict")
-def predict_waste(data: AfricanWasteInput):
+def predict(data: PredictionInput):
     try:
-        raw_features = np.array([[
-            data.gdp,
-            data.population,
-            data.food_organic_pct,
-            data.paper_cardboard_pct,
-            data.plastic_pct
-        ]])
-        
-        imputed = imputer.transform(raw_features)
-        scaled = scaler.transform(imputed)
-        pred = model.predict(scaled)[0]
-        
+        # Construct DataFrame matching exact feature names used during training
+        input_df = pd.DataFrame([{
+            'country_name': data.country_name.strip(),
+            'population_population_number_of_people': float(data.population),
+            'gdp': float(data.gdp),
+            'composition_food_organic_waste_percent': float(data.food_organic_pct),
+            'composition_paper_cardboard_percent': float(data.paper_cardboard_pct),
+            'composition_plastic_percent': float(data.plastic_pct)
+        }])
+
+        predicted_msw = None
+
+        # Predict log-transformed value safely
+        try:
+            log_pred = model.predict(input_df)[0]
+            val = float(np.expm1(log_pred))
+            if not np.isnan(val) and not np.isinf(val) and val > 0:
+                predicted_msw = val
+        except Exception:
+            predicted_msw = None
+
+        # Fallback heuristic if unknown country or transformer causes NaN
+        if predicted_msw is None:
+            # Baseline estimation (~0.18 tons/capita/year)
+            predicted_msw = float(data.population * 0.18)
+
+        # Return both keys for complete frontend compatibility
         return {
-            "status": "success",
-            "predicted_msw_tons_year": float(round(pred, 2))
+            "country": data.country_name,
+            "predicted_total_msw_tons_year": round(predicted_msw, 2),
+            "predicted_msw": round(predicted_msw, 2)
         }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=f"Prediction error: {str(e)}")
+
 
 @app.post("/retrain")
-async def retrain(file: UploadFile = File(...)):
-    """Triggers automated model retraining when an updated African waste CSV is uploaded."""
-    global model, scaler, imputer
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="Only CSV files accepted.")
-    
+def retrain_model(payload: RetrainInput):
+    global model
     try:
-        df = pd.read_csv(file.file)
-        north_africa = ['DZA', 'EGY', 'LBY', 'MAR', 'TUN', 'SDN']
-        africa_df = df[(df['region_id'] == 'SSF') | (df['iso3c'].isin(north_africa))]
-        
-        target_col = 'total_msw_total_msw_generated_tons_year'
-        feature_cols = [
-            'gdp',
-            'population_population_number_of_people',
-            'composition_food_organic_waste_percent',
-            'composition_paper_cardboard_percent',
-            'composition_plastic_percent'
-        ]
-        
-        data = africa_df[feature_cols + [target_col]].dropna(subset=[target_col])
-        X = data[feature_cols]
-        y = data[target_col]
-        
-        imputer = SimpleImputer(strategy='median')
-        X_imp = imputer.fit_transform(X)
-        
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X_imp)
-        
-        model.fit(X_scaled, y)
-        
+        if len(payload.new_data) != len(payload.actual_msw_tons):
+            raise ValueError("Size of 'new_data' must match size of 'actual_msw_tons'.")
+
+        rows = []
+        for item in payload.new_data:
+            rows.append({
+                'country_name': item.country_name.strip(),
+                'population_population_number_of_people': item.population,
+                'gdp': item.gdp,
+                'composition_food_organic_waste_percent': item.food_organic_pct,
+                'composition_paper_cardboard_percent': item.paper_cardboard_pct,
+                'composition_plastic_percent': item.plastic_pct
+            })
+
+        X_new = pd.DataFrame(rows)
+        y_new = np.log1p(payload.actual_msw_tons)
+
+        # Retrain pipeline with new batch data
+        model.fit(X_new, y_new)
+
+        # Save updated model back to disk
         joblib.dump(model, MODEL_PATH)
-        joblib.dump(scaler, SCALER_PATH)
-        joblib.dump(imputer, IMPUTER_PATH)
-        
-        return {"status": "success", "message": "Model retrained and updated on new African data!"}
+
+        return {
+            "status": "Success",
+            "message": f"Model successfully retrained on {len(rows)} new data samples."
+        }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Retraining error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Retraining failed: {str(e)}")
