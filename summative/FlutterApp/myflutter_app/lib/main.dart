@@ -12,8 +12,12 @@ class WastePredictorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'African MSW Predictor',
-      theme: ThemeData(primarySwatch: Colors.green),
+      theme: ThemeData(
+        primarySwatch: Colors.teal,
+        useMaterial3: true,
+      ),
       home: const PredictionScreen(),
     );
   }
@@ -27,51 +31,99 @@ class PredictionScreen extends StatefulWidget {
 }
 
 class _PredictionScreenState extends State<PredictionScreen> {
+  // Form controllers matching the required API variables
   final _countryController = TextEditingController();
   final _popController = TextEditingController();
   final _gdpController = TextEditingController();
   final _foodController = TextEditingController();
+  final _paperController = TextEditingController();
   final _plasticController = TextEditingController();
 
   String _result = "";
   bool _isLoading = false;
+  bool _isError = false;
 
-  // Replace with your actual Render API Endpoint URL
+  // Render API Endpoint
   final String _apiUrl = "https://linear-regression-model-iurj.onrender.com/predict";
 
   Future<void> _makePrediction() async {
+    // 1. Validate empty text fields locally
+    if (_countryController.text.isEmpty ||
+        _popController.text.isEmpty ||
+        _gdpController.text.isEmpty ||
+        _foodController.text.isEmpty ||
+        _paperController.text.isEmpty ||
+        _plasticController.text.isEmpty) {
+      setState(() {
+        _isError = true;
+        _result = "Please fill in all 6 input fields.";
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _result = "";
+      _isError = false;
     });
 
     try {
-     final response = await http.post(
-  Uri.parse(_apiUrl),
-  headers: {"Content-Type": "application/json"},
-  body: jsonEncode({
-    "country_name": _countryController.text.trim(),
-    "population": double.tryParse(_popController.text) ?? 0.0,
-    "gdp": double.tryParse(_gdpController.text) ?? 0.0,
-    "food_waste_percent": double.tryParse(_foodController.text) ?? 0.0,
-    "plastic_percent": double.tryParse(_plasticController.text) ?? 0.0,
-  }),
-);
+      final response = await http.post(
+        Uri.parse(_apiUrl),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "country_name": _countryController.text.trim(),
+          "population": double.tryParse(_popController.text) ?? 0.0,
+          "gdp": double.tryParse(_gdpController.text) ?? 0.0,
+          "food_organic_pct": double.tryParse(_foodController.text) ?? 0.0,
+          "paper_cardboard_pct": double.tryParse(_paperController.text) ?? 0.0,
+          "plastic_pct": double.tryParse(_plasticController.text) ?? 0.0,
+        }),
+      );
+
+      final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+
+        // Dynamic key lookup (checks all common key variants returned by API)
+        final dynamic predictedVal = 
+            responseData['predicted_total_msw_tons_year'] ??
+            responseData['predicted_msw'] ??
+            responseData['prediction'] ??
+            responseData['predicted_total_msw'];
+
+        final String country = responseData['country'] ?? responseData['country_name'] ?? 'Selected Country';
+
         setState(() {
-          _result = "Predicted MSW: ${data['predicted_total_msw_tons_year']} Tons/Year";
+          if (predictedVal != null) {
+            _isError = false;
+            _result = "Predicted MSW for $country:\n"
+                "${predictedVal.toString()} Tons / Year";
+          } else {
+            _isError = true;
+            // Displays the actual raw JSON key structure for easy debugging
+            _result = "API returned status 200, but prediction value was null.\nRaw Response: ${response.body}";
+          }
         });
       } else {
-        final err = jsonDecode(response.body);
+        // Handle FastAPI Pydantic range/type validation errors
+        String errorMsg = "Prediction failed.";
+        if (responseData['detail'] is List && responseData['detail'].isNotEmpty) {
+          errorMsg = responseData['detail'][0]['msg'] ?? "Invalid input range or format.";
+        } else if (responseData['detail'] is String) {
+          errorMsg = responseData['detail'];
+        }
+
         setState(() {
-          _result = "Error: ${err['detail'] ?? 'Out of range or invalid input'}";
+          _isError = true;
+          _result = "Error: $errorMsg";
         });
       }
     } catch (e) {
       setState(() {
-        _result = "Invalid input or connectivity error.";
+        _isError = true;
+        _result = "Connection Error: Check network or API availability.";
       });
     } finally {
       setState(() {
@@ -81,25 +133,131 @@ class _PredictionScreenState extends State<PredictionScreen> {
   }
 
   @override
+  void dispose() {
+    _countryController.dispose();
+    _popController.dispose();
+    _gdpController.dispose();
+    _foodController.dispose();
+    _paperController.dispose();
+    _plasticController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("African Country MSW Predictor")),
+      appBar: AppBar(
+        title: const Text("African Country MSW Predictor"),
+        centerTitle: true,
+        backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(controller: _countryController, decoration: const InputDecoration(labelText: "African Country Name")),
-            TextField(controller: _popController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Population")),
-            TextField(controller: _gdpController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "GDP (USD)")),
-            TextField(controller: _foodController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Food Waste (%)")),
-            TextField(controller: _plasticController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: "Plastic Waste (%)")),
+            const Text(
+              "Predict Municipal Solid Waste Generation",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _countryController,
+              decoration: const InputDecoration(
+                labelText: "African Country Name",
+                hintText: "e.g. Nigeria, Kenya, Ghana",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _popController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "Population",
+                hintText: "e.g. 180000000",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _gdpController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "GDP (USD)",
+                hintText: "e.g. 450000000000",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _foodController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "Food & Organic Waste (%)",
+                hintText: "0 to 100",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _paperController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "Paper & Cardboard Waste (%)",
+                hintText: "0 to 100",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _plasticController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "Plastic Waste (%)",
+                hintText: "0 to 100",
+                border: OutlineInputBorder(),
+              ),
+            ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _isLoading ? null : _makePrediction,
-              child: _isLoading ? const CircularProgressIndicator() : const Text("Predict"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text("Predict", style: TextStyle(fontSize: 16)),
             ),
-            const SizedBox(height: 20),
-            Text(_result, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+            const SizedBox(height: 24),
+            if (_result.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _isError ? Colors.red.shade50 : Colors.teal.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _isError ? Colors.red : Colors.teal,
+                  ),
+                ),
+                child: Text(
+                  _result,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _isError ? Colors.red.shade800 : Colors.teal.shade900,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
