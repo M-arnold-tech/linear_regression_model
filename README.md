@@ -11,7 +11,7 @@ Our mission is to support regional waste management planners, environmental poli
 * **Swagger UI Documentation:** `https://linear-regression-model-iurj.onrender.com/docs`
 
 ## Demo Video
-* **YouTube Video Link:** `https://youtu.be/YOUR_VIDEO_LINK`
+* **YouTube Video Link:** `(https://youtu.be/e1UTem1HTtQ](https://youtu.be/e1UTem1HTtQ))`
 
 ## How to Run the Flutter Mobile App
 1. Ensure Flutter SDK is installed: `flutter doctor`
