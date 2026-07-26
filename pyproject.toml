@@ -1,18 +1,29 @@
 [project]
 name = "linear-regression-model"
 version = "0.1.0"
-description = "African Municipal Solid Waste Generation Prediction API and Mobile App"
+description = "African Municipal Solid Waste Generation Prediction API and Mobile Deployment"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.12"
 dependencies = [
     "fastapi>=0.100.0",
+    "pydantic>=2.0.0",
     "uvicorn>=0.22.0",
-    "pydantic>=2.0",
-    "scikit-learn>=1.2.0",
+    "scikit-learn>=1.3.0",
     "pandas>=2.0.0",
     "numpy>=1.24.0",
-    "matplotlib>=3.7.0",
-    "seaborn>=0.12.0",
     "joblib>=1.3.0",
     "python-multipart>=0.0.6",
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    "jupyter>=1.0.0",
+    "httpx>=0.24.0"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.4.0",
 ]
