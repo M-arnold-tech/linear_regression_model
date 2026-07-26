@@ -86,27 +86,27 @@ class _PredictionScreenState extends State<PredictionScreen> {
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
 
-        // Dynamic key lookup (checks all common key variants returned by API)
-        final dynamic predictedVal = 
+        // Try extracting from all possible key variations
+        final dynamic rawPrediction = responseData['predicted_msw'] ??
             responseData['predicted_total_msw_tons_year'] ??
-            responseData['predicted_msw'] ??
-            responseData['prediction'] ??
-            responseData['predicted_total_msw'];
+            responseData['prediction'];
 
-        final String country = responseData['country'] ?? responseData['country_name'] ?? 'Selected Country';
+        final String country = responseData['country'] ??
+            responseData['country_name'] ??
+            _countryController.text.trim();
 
         setState(() {
-          if (predictedVal != null) {
+          if (rawPrediction != null && rawPrediction.toString() != "null") {
             _isError = false;
             _result = "Predicted MSW for $country:\n"
-                "${predictedVal.toString()} Tons / Year";
+                "${rawPrediction.toString()} Tons / Year";
           } else {
             _isError = true;
-            // Displays the actual raw JSON key structure for easy debugging
-            _result = "API returned status 200, but prediction value was null.\nRaw Response: ${response.body}";
+            _result = "API returned 200 OK, but output was null.\nRaw Body: ${response.body}";
           }
         });
-      } else {
+      } 
+        else {
         // Handle FastAPI Pydantic range/type validation errors
         String errorMsg = "Prediction failed.";
         if (responseData['detail'] is List && responseData['detail'].isNotEmpty) {
