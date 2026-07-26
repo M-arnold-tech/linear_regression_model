@@ -38,8 +38,9 @@ class _PredictionScreenState extends State<PredictionScreen> {
   Map<String, dynamic>? _details;
   bool _isLoading = false;
 
-  // ⚠️ Replace with your actual deployed Render API endpoint URL
-  final String _apiUrl = "https://linear-regression-model-iurj.onrender.com/predict-by-country";
+  
+final String _apiUrl = "https://linear-regression-model-iurj.onrender.com/predict";
+
 
   Future<void> _makePrediction() async {
     setState(() {
@@ -75,7 +76,13 @@ class _PredictionScreenState extends State<PredictionScreen> {
       final response = await http.post(
         Uri.parse(_apiUrl),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode(requestBody),
+        body: jsonEncode({
+          "gdp": 456775408619.0,
+          "population": 154402181.0,
+          "food_organic_pct": 52.0,
+          "paper_cardboard_pct": 8.0,
+          "plastic_pct": 4.8
+        }),
       );
 
       if (response.statusCode == 200) {
