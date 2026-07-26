@@ -46,17 +46,17 @@ class _PredictionScreenState extends State<PredictionScreen> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse(_apiUrl),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "country_name": _countryController.text.trim(),
-          "population": double.parse(_popController.text),
-          "gdp": double.parse(_gdpController.text),
-          "food_waste_percent": double.parse(_foodController.text),
-          "plastic_percent": double.parse(_plasticController.text),
-        }),
-      );
+     final response = await http.post(
+  Uri.parse(_apiUrl),
+  headers: {"Content-Type": "application/json"},
+  body: jsonEncode({
+    "country_name": _countryController.text.trim(),
+    "population": double.tryParse(_popController.text) ?? 0.0,
+    "gdp": double.tryParse(_gdpController.text) ?? 0.0,
+    "food_waste_percent": double.tryParse(_foodController.text) ?? 0.0,
+    "plastic_percent": double.tryParse(_plasticController.text) ?? 0.0,
+  }),
+);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
